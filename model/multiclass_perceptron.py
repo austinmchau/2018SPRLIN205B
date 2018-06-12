@@ -1,83 +1,66 @@
 import numpy as np
 from typing import Tuple, Union
-from pprint import pprint
 
-from dataset import Dataset, DSTC2
+from dataset import Dataset
 from model import Model
 
 
 class MulticlassPerceptron(Model):
+    """
+    This class represents the multi-class perceptron. Initialize it with the training set, then call train() to
+    create a multi-class perceptron trained on the given dataset.
+    """
 
-    def train(self, iterations: int):
+    def __init__(self, training_set: Dataset):
+        self.training_set = training_set
+
+        # creating weights for the perceptron with size wrt. the training set.
+        self.weights = np.asmatrix(np.zeros(
+            (len(training_set.labels), len(training_set.data_features))
+        ))
+
+    def train(self, iterations: int = 10):
+        """
+        Train the model on the given training_set. Adjust the weights based on the perceptron algorithm.
+        :param iterations: How many iterations to train the model with
+        :return: None
+        """
         for i in range(iterations):
             print("iteration:", i)
             activations = self.weights * self.training_set.data.T
             arg_max = activations.argmax(0).A1
             predictions = [self.training_set.data_labels[i] for i in arg_max]
 
+            # for each prediction, adjust weights of each corresponding class based on the error
             for i, (p, a) in enumerate(zip(predictions, self.training_set.data_labels)):
                 if p != a:
                     self.weights[self.training_set.labels.index(a)] += self.training_set.data[i]
                     self.weights[self.training_set.labels.index(p)] -= self.training_set.data[i]
 
     def predict(self, vector: Union[Tuple[float, ...], Tuple[Tuple[float, ...]]]):
+        """
+        Predict a label based on the given vector/vectors. Require model to be trained.
+        :param vector: vector/vectors representing the testing data.
+        :return: The list of predictions
+        """
         vector = np.matrix(vector)
 
         activations = self.weights * vector.T
         predictions = [self.training_set.labels[i] for i in activations.argmax(0).A1]
         return predictions
 
+    def accuracy(self, testing_set: Dataset):
+        """
+        Calculate the accuracy of the model based on the given testing_set
+        :param testing_set: testing data
+        :return: accuracy value
+        """
+        correct, incorrect = 0, 0
+        predictions = self.predict(testing_set.data)
+        for p, a in zip(predictions, testing_set.data_labels):
+            if p == a:
+                correct += 1
+            else:
+                incorrect += 1
 
-def data_from(utterances, labels):
-    from collections import Counter
-    import nltk
-    counter = Counter()
-    for u in utterances:
-        # print(u)
-        tokens = nltk.word_tokenize(u)
-        counter.update(tokens)
-
-    features = [w for w, _ in counter.most_common()]
-
-    vecs = []
-    for u in utterances:
-        tokens = nltk.word_tokenize(u)
-        c = Counter(tokens)
-        vec = [c[t] for t in features]
-        vecs.append(vec)
-
-    return Dataset(features, labels, vecs)
-
-
-if __name__ == '__main__':
-    training = DSTC2.trainset(500)
-    utterances, labels = training.read_json()
-
-    print("original dataset size:", len(utterances))
-    size = int(len(utterances) * 0.9)
-    utterances = utterances[:size]
-    labels = labels[:size]
-    print("current dataset size:", len(utterances))
-
-    training_data = data_from(utterances, labels)
-
-    model = MulticlassPerceptron(training_data)
-
-    # print(model.training_set.labels)
-
-    model.train(iterations=10)
-
-    # pprint(model.weights.shape)
-
-    testing = DSTC2.testset(500)
-    utterances_t, labels_t = training.read_json()
-    # max_length_t = 500
-    # utterances_t = sequence.pad_sequences(utterances_t, maxlen=max_length_t)
-
-    testing_data = data_from(utterances_t, labels_t)
-
-    a = model.accuracy(testing_data)
-    pprint(model.weights)
-    print(a)
-
-
+        return correct / (correct + incorrect)
